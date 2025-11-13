@@ -22,23 +22,32 @@ pub fn core_keys() -> &'static RotatableKeyPair {
     RotatableKeyPair::from_private_key_spec(
       &core_config().private_key,
     )
-    .unwrap()
+    .unwrap_or_else(|e| {
+      panic!(
+        "Failed to initialize core keys from private key spec: {e:#}. \
+         Ensure a valid private key is configured."
+      )
+    })
   })
 }
 
 pub fn core_connection_query() -> &'static String {
   static CORE_HOSTNAME: OnceLock<String> = OnceLock::new();
   CORE_HOSTNAME.get_or_init(|| {
-    let host = url::Url::parse(&core_config().host)
-      .context("Failed to parse config field 'host' as URL")
-      .unwrap()
-      .host()
-      .context(
-        "Failed to parse config field 'host' | missing host part",
-      )
-      .unwrap()
-      .to_string();
-    format!("core={}", urlencoding::encode(&host))
+    let host_str = url::Url::parse(&core_config().host)
+      .and_then(|url| {
+        url.host()
+          .ok_or_else(|| url::ParseError::EmptyHost)
+          .map(|host| host.to_string())
+      })
+      .unwrap_or_else(|e| {
+        panic!(
+          "Failed to parse config field 'host' ({}) as URL: {e:?}. \
+           Ensure 'host' is a valid URL with a host part.",
+          core_config().host
+        )
+      });
+    format!("core={}", urlencoding::encode(&host_str))
   })
 }
 
@@ -130,7 +139,17 @@ pub fn core_config() -> &'static CoreConfig {
         debug_print: env.komodo_config_debug,
       })
       .load::<CoreConfig>()
-      .expect("Failed at parsing config from paths")
+      .unwrap_or_else(|e| {
+        eprintln!(
+          "{}: Failed to parse config from paths: {e:#}",
+          "ERROR".red()
+        );
+        eprintln!(
+          "{}: Falling back to default config",
+          "WARN".yellow()
+        );
+        CoreConfig::default()
+      })
     };
 
     // recreating CoreConfig here makes sure apply all env overrides applied.
@@ -378,6 +397,18 @@ pub fn core_config() -> &'static CoreConfig {
       ssl_cert_file: env
         .komodo_ssl_cert_file
         .unwrap_or(config.ssl_cert_file),
+      cors_allowed_origins: env
+        .komodo_cors_allowed_origins
+        .map(|s| {
+          s.split(',')
+            .map(|origin| origin.trim().to_string())
+            .filter(|origin| !origin.is_empty())
+            .collect()
+        })
+        .unwrap_or(config.cors_allowed_origins),
+      cors_allow_credentials: env
+        .komodo_cors_allow_credentials
+        .unwrap_or(config.cors_allow_credentials),
 
       // These can't be overridden on env
       secrets: config.secrets,

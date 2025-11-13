@@ -331,6 +331,35 @@ ssl_key_file = "/config/ssl/key.pem"
 ssl_cert_file = "/config/ssl/cert.pem"
 
 ############
+# CORS     #
+############
+
+## List of allowed CORS origins. If empty or not specified, allows all origins (Any).
+## For production, specify allowed origins explicitly to improve security.
+## 
+## Example: `["https://komodo.example.com", "https://app.example.com"]`
+## 
+## Environment Variable: KOMODO_CORS_ALLOWED_ORIGINS
+## Format: Comma-separated list (e.g., "https://komodo.example.com,https://app.example.com")
+## 
+## Security Note: Leaving this empty allows all origins, which is convenient for development
+## but should be restricted in production environments.
+## 
+## Default: empty list (allows all origins for backward compatibility)
+# cors_allowed_origins = []
+
+## Whether to allow credentials in CORS requests.
+## Only set to true if you need to send cookies or authentication headers.
+## 
+## Environment Variable: KOMODO_CORS_ALLOW_CREDENTIALS
+## 
+## Security Note: When credentials are allowed, browsers will include cookies and
+## authentication headers in cross-origin requests. Only enable this if necessary.
+## 
+## Default: false
+cors_allow_credentials = false
+
+############
 # DATABASE #
 ############
 

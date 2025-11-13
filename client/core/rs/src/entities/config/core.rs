@@ -264,6 +264,11 @@ pub struct Env {
   pub komodo_ssl_key_file: Option<PathBuf>,
   /// Override `ssl_cert_file`
   pub komodo_ssl_cert_file: Option<PathBuf>,
+
+  /// Override `cors_allowed_origins` (comma-separated)
+  pub komodo_cors_allowed_origins: Option<String>,
+  /// Override `cors_allow_credentials`
+  pub komodo_cors_allow_credentials: Option<bool>,
 }
 
 fn default_core_config_paths() -> Vec<PathBuf> {
@@ -633,6 +638,21 @@ pub struct CoreConfig {
   #[serde(default = "default_ssl_cert_file")]
   pub ssl_cert_file: PathBuf,
 
+  // =======
+  // = CORS =
+  // =======
+  /// List of allowed CORS origins. If empty, allows all origins (Any).
+  /// For production, specify allowed origins explicitly.
+  /// Example: `["https://komodo.example.com", "https://app.example.com"]`
+  /// Env: KOMODO_CORS_ALLOWED_ORIGINS (comma-separated)
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub cors_allowed_origins: Vec<String>,
+
+  /// Whether to allow credentials in CORS requests.
+  /// Default: false
+  #[serde(default)]
+  pub cors_allow_credentials: bool,
+
   // =========
   // = Other =
   // =========
@@ -773,6 +793,8 @@ impl Default for CoreConfig {
       ssl_enabled: Default::default(),
       ssl_key_file: default_ssl_key_file(),
       ssl_cert_file: default_ssl_cert_file(),
+      cors_allowed_origins: Default::default(),
+      cors_allow_credentials: Default::default(),
       sync_directory: default_sync_directory(),
       repo_directory: default_repo_directory(),
       action_directory: default_action_directory(),

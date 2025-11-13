@@ -9,9 +9,11 @@ use anyhow::Context;
 use axum::{Router, routing::get};
 use axum_server::{Handle, tls_rustls::RustlsConfig};
 use tower_http::{
-  cors::{Any, CorsLayer},
+  cors::{Any, CorsLayer, AllowOrigin},
   services::{ServeDir, ServeFile},
+  set_header::SetResponseHeaderLayer,
 };
+use axum::http::{HeaderValue, header};
 use tracing::Instrument;
 
 use crate::config::{core_config, core_keys};
@@ -36,6 +38,97 @@ mod state;
 mod sync;
 mod ts_client;
 mod ws;
+
+/// Applies security headers to the router.
+///
+/// Adds security headers including:
+/// - X-Content-Type-Options: nosniff
+/// - X-Frame-Options: DENY
+/// - X-XSS-Protection: 1; mode=block
+/// - Referrer-Policy: strict-origin-when-cross-origin
+/// - HSTS (if SSL enabled)
+///
+/// # Arguments
+///
+/// * `router` - The router to apply headers to
+/// * `config` - The core configuration
+///
+/// # Returns
+///
+/// Router with security headers applied
+fn apply_security_headers(
+  router: Router,
+  config: &komodo_client::entities::config::core::CoreConfig,
+) -> Router {
+  let mut router = router
+    .layer(SetResponseHeaderLayer::overriding(
+      header::X_CONTENT_TYPE_OPTIONS,
+      HeaderValue::from_static("nosniff"),
+    ))
+    .layer(SetResponseHeaderLayer::overriding(
+      header::HeaderName::from_static("x-frame-options"),
+      HeaderValue::from_static("DENY"),
+    ))
+    .layer(SetResponseHeaderLayer::overriding(
+      header::HeaderName::from_static("x-xss-protection"),
+      HeaderValue::from_static("1; mode=block"),
+    ))
+    .layer(SetResponseHeaderLayer::overriding(
+      header::HeaderName::from_static("referrer-policy"),
+      HeaderValue::from_static("strict-origin-when-cross-origin"),
+    ));
+
+  // Add HSTS header if SSL is enabled
+  if config.ssl_enabled {
+    router = router.layer(SetResponseHeaderLayer::overriding(
+      header::HeaderName::from_static("strict-transport-security"),
+      HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+    ));
+  }
+
+  router
+}
+
+/// Creates a CORS layer based on the configuration.
+///
+/// # Behavior
+///
+/// - If `cors_allowed_origins` is empty: Allows all origins (backward compatibility)
+/// - If `cors_allowed_origins` is set: Only allows the specified origins
+/// - Methods and headers are always allowed (Any)
+/// - Credentials are only allowed if `cors_allow_credentials` is true
+///
+/// # Arguments
+///
+/// * `config` - The core configuration containing CORS settings
+///
+/// # Returns
+///
+/// A configured `CorsLayer` ready to be added to the Axum router
+fn create_cors_layer(config: &komodo_client::entities::config::core::CoreConfig) -> CorsLayer {
+  let mut cors = CorsLayer::new()
+    .allow_methods(Any)
+    .allow_headers(Any);
+
+  if config.cors_allowed_origins.is_empty() {
+    // If no origins specified, allow all (backward compatibility)
+    cors = cors.allow_origin(Any);
+  } else {
+    // Allow specific origins
+    let origins: Vec<HeaderValue> = config
+      .cors_allowed_origins
+      .iter()
+      .filter_map(|origin| HeaderValue::from_str(origin).ok())
+      .collect();
+    cors = cors.allow_origin(AllowOrigin::list(origins));
+  }
+
+  if config.cors_allow_credentials {
+    cors = cors.allow_credentials(true);
+  }
+
+  cors
+}
 
 async fn app() -> anyhow::Result<()> {
   dotenvy::dotenv().ok();
@@ -62,13 +155,18 @@ async fn app() -> anyhow::Result<()> {
 
     rustls::crypto::aws_lc_rs::default_provider()
       .install_default()
-      .expect("Failed to install default crypto provider");
+      .context("Failed to install default crypto provider")?;
 
     // Init jwt client to crash on failure
     state::jwt_client();
     tokio::join!(
       // Init db_client check to crash on db init failure
-      state::init_db_client(),
+      async {
+        if let Err(e) = state::init_db_client().await {
+          error!("Failed to initialize database client: {e:#}");
+          panic!("Database initialization failed: {e:#}");
+        }
+      },
       // Manage OIDC client (defined in config / env vars / compose secret file)
       auth::oidc::client::spawn_oidc_client_management()
     );
@@ -108,13 +206,10 @@ async fn app() -> anyhow::Result<()> {
     .nest("/ws", ws::router())
     .nest("/client", ts_client::router())
     .fallback_service(serve_frontend)
-    .layer(
-      CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any),
-    )
-    .into_make_service();
+    .layer(create_cors_layer(&config));
+
+  let app = apply_security_headers(app, &config);
+  let app = app.into_make_service();
 
   let addr =
     format!("{}:{}", core_config().bind_ip, core_config().port);
