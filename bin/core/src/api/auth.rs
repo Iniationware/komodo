@@ -20,7 +20,10 @@ use crate::{
     oidc::{self, client::oidc_client},
   },
   config::core_config,
-  helpers::query::get_user,
+  helpers::{
+    query::get_user,
+    security::{rate_limit_middleware, RateLimiter},
+  },
   state::jwt_client,
 };
 
@@ -50,9 +53,20 @@ pub enum AuthRequest {
 }
 
 pub fn router() -> Router {
+  // Create rate limiter for auth endpoints (5 attempts per 5 minutes)
+  let rate_limiter = RateLimiter::new(5, 300);
+
   let mut router = Router::new()
     .route("/", post(handler))
-    .route("/{variant}", post(variant_handler));
+    .route("/{variant}", post(variant_handler))
+    .layer(axum::middleware::from_fn(move |mut req: axum::extract::Request, next: axum::middleware::Next| {
+      let rate_limiter = rate_limiter.clone();
+      async move {
+        // Insert rate limiter into request extensions
+        req.extensions_mut().insert(rate_limiter);
+        rate_limit_middleware(req, next).await
+      }
+    }));
 
   if core_config().local_auth {
     info!("🔑 Local Login Enabled");
