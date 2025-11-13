@@ -1,4 +1,17 @@
-export const Json = ({ json }: any) => {
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+interface JsonProps {
+  json: JsonValue;
+}
+
+export const Json = ({ json }: JsonProps) => {
   if (!json) {
     return <p>null</p>;
   }
@@ -22,27 +35,32 @@ export const Json = ({ json }: any) => {
     type === "string" ||
     type === "symbol"
   ) {
-    return <p>{json}</p>;
+    return <p>{String(json)}</p>;
   }
 
   // Type is object or array
   if (Array.isArray(json)) {
     return (
       <div className="flex flex-col gap-2">
-        {(json as any[]).map((json) => (
-          <Json json={json} />
+        {json.map((item, index) => (
+          <Json key={index} json={item} />
         ))}
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col gap-2">
-      {Object.keys(json).map((key) => (
-        <div className="flex gap-2">
-          <p>{key}</p>: <Json json={json[key]} />
-        </div>
-      ))}
-    </div>
-  );
+  // Type is object
+  if (type === "object" && json !== null) {
+    return (
+      <div className="flex flex-col gap-2">
+        {Object.keys(json).map((key) => (
+          <div key={key} className="flex gap-2">
+            <p>{key}</p>: <Json json={(json as Record<string, JsonValue>)[key]} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <p>null</p>;
 };

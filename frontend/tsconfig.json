@@ -21,7 +21,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
+    // Note: Enabling noImplicitAny may reveal additional type issues.
+    // Some files may need gradual type improvements.
     /* Paths */
     "baseUrl": "./src",
     "paths": {
