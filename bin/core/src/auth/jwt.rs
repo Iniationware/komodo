@@ -90,6 +90,9 @@ impl JwtClient {
     exchange_token
   }
 
+  /// Clock skew tolerance in milliseconds (1 minute for exchange tokens)
+  const EXCHANGE_TOKEN_CLOCK_SKEW_MS: u128 = 60 * 1000;
+
   pub async fn redeem_exchange_token(
     &self,
     exchange_token: &str,
@@ -100,7 +103,10 @@ impl JwtClient {
       .await
       .remove(exchange_token)
       .context("invalid exchange token: unrecognized")?;
-    if unix_timestamp_ms() < valid_until {
+    
+    let now = unix_timestamp_ms();
+    // Apply clock skew tolerance: token is valid if expiration is greater than (now - tolerance)
+    if now < valid_until + Self::EXCHANGE_TOKEN_CLOCK_SKEW_MS {
       Ok(jwt)
     } else {
       Err(anyhow!("invalid exchange token: expired"))

@@ -87,11 +87,20 @@ pub async fn authenticate_check_enabled(
   }
 }
 
+/// Clock skew tolerance in milliseconds (5 minutes)
+/// This accounts for minor time differences between servers
+const CLOCK_SKEW_TOLERANCE_MS: u128 = 5 * 60 * 1000;
+
 pub async fn auth_jwt_get_user_id(
   jwt: &str,
 ) -> anyhow::Result<String> {
   let claims: JwtClaims = jwt_client().decode(jwt)?;
-  if claims.exp > unix_timestamp_ms() {
+  let now = unix_timestamp_ms();
+  
+  // Check expiration with clock skew tolerance
+  // Token is valid if expiration time is greater than (now - tolerance)
+  // This allows tokens that are slightly expired due to clock differences
+  if claims.exp > now.saturating_sub(CLOCK_SKEW_TOLERANCE_MS) {
     Ok(claims.id)
   } else {
     Err(anyhow!("token has expired"))
@@ -105,6 +114,9 @@ pub async fn auth_jwt_check_enabled(
   check_enabled(user_id).await
 }
 
+/// Clock skew tolerance for API key expiration checks (5 minutes)
+const API_KEY_CLOCK_SKEW_MS: i64 = 5 * 60 * 1000;
+
 pub async fn auth_api_key_get_user_id(
   key: &str,
   secret: &str,
@@ -115,8 +127,15 @@ pub async fn auth_api_key_get_user_id(
     .await
     .context("failed to query db")?
     .context("no api key matching key")?;
-  if key.expires != 0 && key.expires < komodo_timestamp() {
-    return Err(anyhow!("api key expired"));
+  
+  // Check expiration with clock skew tolerance
+  // API key expires at 0 means it never expires
+  if key.expires != 0 {
+    let now = komodo_timestamp();
+    // Apply clock skew tolerance: key is valid if expiration is greater than (now - tolerance)
+    if key.expires < now.saturating_sub(API_KEY_CLOCK_SKEW_MS) {
+      return Err(anyhow!("api key expired"));
+    }
   }
   if bcrypt::verify(secret, &key.secret)
     .context("failed to verify secret hash")?
