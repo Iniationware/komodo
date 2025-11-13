@@ -25,20 +25,22 @@ use crate::{
 static DB_CLIENT: OnceLock<database::Client> = OnceLock::new();
 
 pub fn db_client() -> &'static database::Client {
-  DB_CLIENT
-    .get()
-    .expect("db_client accessed before initialized")
+  DB_CLIENT.get().unwrap_or_else(|| {
+    panic!(
+      "db_client accessed before initialized. Ensure init_db_client() is called during startup."
+    )
+  })
 }
 
 /// Must be called in app startup sequence.
-pub async fn init_db_client() {
+pub async fn init_db_client() -> anyhow::Result<()> {
   let client = database::Client::new(&core_config().database)
     .await
-    .context("failed to initialize database client")
-    .unwrap();
-  DB_CLIENT
-    .set(client)
-    .expect("db_client initialized more than once");
+    .context("failed to initialize database client")?;
+  DB_CLIENT.set(client).map_err(|_| {
+    anyhow::anyhow!("db_client initialized more than once - this should not happen")
+  })?;
+  Ok(())
 }
 
 pub fn jwt_client() -> &'static JwtClient {

@@ -98,7 +98,10 @@ pub fn spawn_monitor_loop() {
   let interval: async_timing_util::Timelength = core_config()
     .monitoring_interval
     .try_into()
-    .expect("Invalid monitoring interval");
+    .unwrap_or_else(|_| {
+      error!("Invalid monitoring interval, using default 15-sec");
+      async_timing_util::Timelength::FifteenSeconds
+    });
   tokio::spawn(async move {
     refresh_server_cache(komodo_timestamp()).await;
     loop {

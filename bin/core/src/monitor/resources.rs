@@ -3,7 +3,7 @@ use std::{
   sync::{Mutex, OnceLock},
 };
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use komodo_client::{
   api::execute::{Deploy, DeployStack},
   entities::{
@@ -165,13 +165,13 @@ pub async fn update_deployment_cache(
         && deployment.config.send_alerts
         && !deployment_alert_sent_cache()
           .lock()
-          .unwrap()
+          .map_err(|e| anyhow::anyhow!("Alert cache lock poisoned: {e:?}"))?
           .contains(&deployment.id)
       {
         // Add that it is already sent to the cache, so another alert won't be sent.
         deployment_alert_sent_cache()
           .lock()
-          .unwrap()
+          .map_err(|e| anyhow::anyhow!("Alert cache lock poisoned: {e:?}"))?
           .insert(deployment.id.clone());
         let ts = komodo_timestamp();
         let alert = Alert {
@@ -201,10 +201,11 @@ pub async fn update_deployment_cache(
       // If it sees there is no longer update available, remove
       // from the sent cache, so on next `update_available = true`
       // the cache is empty and a fresh alert will be sent.
-      deployment_alert_sent_cache()
-        .lock()
-        .unwrap()
-        .remove(&deployment.id);
+      if let Ok(mut cache) = deployment_alert_sent_cache().lock() {
+        cache.remove(&deployment.id);
+      } else {
+        warn!("Failed to acquire alert cache lock for cleanup");
+      }
     }
     deployment_status_cache
       .insert(
@@ -275,15 +276,15 @@ pub async fn update_stack_cache(
         if !stack.config.auto_update
           && stack.config.send_alerts
           && container.is_some()
-          && container.as_ref().unwrap().state == ContainerStateStatusEnum::Running
+          && container.as_ref().map(|c| c.state == ContainerStateStatusEnum::Running).unwrap_or(false)
           && !stack_alert_sent_cache()
             .lock()
-            .unwrap()
+            .map_err(|e| anyhow::anyhow!("Stack alert cache lock poisoned: {e:?}"))?
             .contains(&(stack.id.clone(), service_name.clone()))
         {
           stack_alert_sent_cache()
             .lock()
-            .unwrap()
+            .map_err(|e| anyhow::anyhow!("Stack alert cache lock poisoned: {e:?}"))?
             .insert((stack.id.clone(), service_name.clone()));
           let ts = komodo_timestamp();
           let alert = Alert {
@@ -313,10 +314,11 @@ pub async fn update_stack_cache(
           });
         }
       } else {
-        stack_alert_sent_cache()
-          .lock()
-          .unwrap()
-          .remove(&(stack.id.clone(), service_name.clone()));
+        if let Ok(mut cache) = stack_alert_sent_cache().lock() {
+          cache.remove(&(stack.id.clone(), service_name.clone()));
+        } else {
+          warn!("Failed to acquire stack alert cache lock for cleanup");
+        }
       }
       StackService {
         service: service_name.clone(),
