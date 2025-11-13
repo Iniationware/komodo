@@ -22,7 +22,12 @@ use typeshare::typeshare;
 use uuid::Uuid;
 
 use crate::{
-  auth::auth_request, helpers::query::get_user, state::db_client,
+  auth::auth_request,
+  helpers::{
+    query::get_user,
+    validation::validate_api_key_name,
+  },
+  state::db_client,
 };
 
 use super::Variant;
@@ -155,6 +160,10 @@ impl Resolve<UserArgs> for CreateApiKey {
     self,
     UserArgs { user }: &UserArgs,
   ) -> serror::Result<CreateApiKeyResponse> {
+    // Validate API key name
+    validate_api_key_name(&self.name)
+      .context("Invalid API key name")?;
+
     let user = get_user(&user.id).await?;
 
     let key = format!("K-{}", random_string(SECRET_LENGTH));

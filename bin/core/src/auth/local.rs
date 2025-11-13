@@ -18,6 +18,13 @@ use resolver_api::Resolve;
 use crate::{
   api::auth::AuthArgs,
   config::core_config,
+  helpers::{
+    security::{get_client_ip, log_security_event},
+    validation::{
+      sanitize_for_mongodb, validate_mongodb_field_value,
+      validate_password, validate_username,
+    },
+  },
   state::{db_client, jwt_client},
 };
 
@@ -33,19 +40,26 @@ impl Resolve<AuthArgs> for SignUpLocalUser {
       return Err(anyhow!("Local auth is not enabled").into());
     }
 
-    if self.username.is_empty() {
-      return Err(anyhow!("Username cannot be empty string").into());
-    }
+    // Validate username format and length
+    validate_username(&self.username)
+      .context("Invalid username format")?;
 
-    if ObjectId::from_str(&self.username).is_ok() {
+    // Additional MongoDB safety check
+    validate_mongodb_field_value(&self.username, 100)
+      .context("Username contains invalid characters")?;
+
+    // Sanitize username for MongoDB
+    let username = sanitize_for_mongodb(&self.username);
+
+    if ObjectId::from_str(&username).is_ok() {
       return Err(
         anyhow!("Username cannot be valid ObjectId").into(),
       );
     }
 
-    if self.password.is_empty() {
-      return Err(anyhow!("Password cannot be empty string").into());
-    }
+    // Validate password format and length
+    validate_password(&self.password)
+      .context("Invalid password format")?;
 
     let db = db_client();
 
@@ -58,7 +72,7 @@ impl Resolve<AuthArgs> for SignUpLocalUser {
 
     if db
       .users
-      .find_one(doc! { "username": &self.username })
+      .find_one(doc! { "username": &username })
       .await
       .context("Failed to query for existing users")?
       .is_some()
@@ -71,7 +85,7 @@ impl Resolve<AuthArgs> for SignUpLocalUser {
 
     let user = User {
       id: Default::default(),
-      username: self.username,
+      username: username.clone(),
       enabled: no_users_exist || core_config.enable_new_users,
       admin: no_users_exist,
       super_admin: no_users_exist,
@@ -104,27 +118,61 @@ impl Resolve<AuthArgs> for SignUpLocalUser {
 }
 
 impl Resolve<AuthArgs> for LoginLocalUser {
+  #[instrument("LoginLocalUser", skip(self))]
   async fn resolve(
     self,
-    _: &AuthArgs,
+    args: &AuthArgs,
   ) -> serror::Result<LoginLocalUserResponse> {
     if !core_config().local_auth {
       return Err(anyhow!("local auth is not enabled").into());
     }
 
+    let ip = get_client_ip(&args.headers);
+
+    // Sanitize username for MongoDB query
+    let username = sanitize_for_mongodb(&self.username);
+    validate_mongodb_field_value(&username, 100)
+      .context("Username contains invalid characters")?;
+
     let user = db_client()
       .users
-      .find_one(doc! { "username": &self.username })
+      .find_one(doc! { "username": &username })
       .await
-      .context("failed at db query for users")?
-      .with_context(|| {
-        format!("did not find user with username {}", self.username)
+      .context("failed at db query for users")
+      .map_err(|e| {
+        log_security_event(
+          "failed_login_query",
+          &format!("Database query failed: {e:#}"),
+          &ip,
+        );
+        e
       })?;
+
+    let user = match user {
+      Some(user) => user,
+      None => {
+        log_security_event(
+          "failed_login",
+          &format!("User not found: {}", self.username),
+          &ip,
+        );
+        return Err(
+          anyhow!("invalid credentials")
+            .context("did not find user with username")
+            .into(),
+        );
+      }
+    };
 
     let UserConfig::Local {
       password: user_pw_hash,
     } = user.config
     else {
+      log_security_event(
+        "failed_login",
+        &format!("Non-local auth user attempted password login: {}", self.username),
+        &ip,
+      );
       return Err(
         anyhow!(
           "non-local auth users can not log in with a password"
@@ -137,8 +185,16 @@ impl Resolve<AuthArgs> for LoginLocalUser {
       .context("failed at verify password")?;
 
     if !verified {
+      log_security_event(
+        "failed_login",
+        &format!("Invalid password for user: {}", self.username),
+        &ip,
+      );
       return Err(anyhow!("invalid credentials").into());
     }
+
+    // Successful login - log security event
+    info!("Successful login | user: {} | ip: {}", self.username, ip);
 
     jwt_client()
       .encode(user.id.clone())
