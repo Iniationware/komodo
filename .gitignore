@@ -11,3 +11,16 @@ deno.lock
 /lib/ts_client/build
 
 .dev
+
+# Temporary PR and development files
+PR_*.md
+COMMIT_SUMMARY.md
+CREATE_PRS.md
+SETUP_GH_CLI.md
+PR_READY.md
+PR_RECOMMENDATIONS.md
+create_prs*.sh
+create_pr_via_api.sh
+create_prs_manual.md
+.git_commit_plan.md
+.cleanup_temp_files.txt
