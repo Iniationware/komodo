@@ -1,129 +1,129 @@
 # 🦎 Komodo Docker Deployment
 
-Dieses Verzeichnis enthält Docker- und Docker Compose-Dateien für die Bereitstellung von Komodo Client (Agent) und Server (Periphery) in containerisierten Umgebungen.
+This directory contains Docker and Docker Compose files for deploying Komodo Client (Agent) and Server (Periphery) in containerized environments.
 
-## 📁 Dateien
+## 📁 Files
 
-- `Dockerfile.client` - Dockerfile für den Komodo Client (Agent)
-- `Dockerfile.server` - Dockerfile für den Komodo Server (Periphery)
-- `docker-compose.yml` - Docker Compose-Datei für beide Services
-- `.env.example` - Beispiel-Umgebungsvariablen-Datei
-- `README.md` - Diese Datei
+- `Dockerfile.client` - Dockerfile for Komodo Client (Agent)
+- `Dockerfile.server` - Dockerfile for Komodo Server (Periphery)
+- `docker-compose.yml` - Docker Compose file for both services
+- `env.example` - Example environment variables file
+- `README.md` - This file
 
-## 🚀 Schnellstart
+## 🚀 Quick Start
 
-### 1. Umgebungsvariablen konfigurieren
+### 1. Configure environment variables
 
 ```bash
 cd docker
-cp .env.example .env
-# Bearbeiten Sie .env und passen Sie die Werte an Ihre Umgebung an
+cp env.example .env
+# Edit .env and adjust the values to your environment
 ```
 
-### 2. Verzeichnisse erstellen
+### 2. Create directories
 
 ```bash
-# Erstellen Sie das Root-Verzeichnis für Periphery
+# Create the root directory for Periphery
 mkdir -p ../komodo-root/{stacks,repos,builds}
 
-# Erstellen Sie das Workspace-Verzeichnis für den Client (optional)
+# Create the workspace directory for the client (optional)
 mkdir -p ../workspace
 ```
 
-### 3. Container starten
+### 3. Start containers
 
 ```bash
-# Beide Services starten
+# Start both services
 docker-compose up -d
 
-# Nur den Server starten
+# Start only the server
 docker-compose up -d komodo-server
 
-# Nur den Client starten
+# Start only the client
 docker-compose up -d komodo-client
 ```
 
-### 4. Logs anzeigen
+### 4. View logs
 
 ```bash
-# Alle Logs
+# All logs
 docker-compose logs -f
 
-# Nur Server-Logs
+# Server logs only
 docker-compose logs -f komodo-server
 
-# Nur Client-Logs
+# Client logs only
 docker-compose logs -f komodo-client
 ```
 
-## ⚙️ Konfiguration
+## ⚙️ Configuration
 
-### Umgebungsvariablen
+### Environment Variables
 
-Beide Services können über Umgebungsvariablen konfiguriert werden. Die vollständige Liste finden Sie in:
+Both services can be configured via environment variables. The complete list can be found in:
 
 - **Client**: [komodo.cli.toml](../config/komodo.cli.toml)
 - **Server**: [periphery.config.toml](../config/periphery.config.toml)
 
-### Konfigurationsdateien
+### Configuration Files
 
-Alternativ können Sie Konfigurationsdateien verwenden:
+Alternatively, you can use configuration files:
 
-#### Client-Konfiguration
+#### Client Configuration
 
-Erstellen Sie eine `komodo.cli.toml` Datei und mounten Sie sie:
+Create a `komodo.cli.toml` file and mount it:
 
 ```yaml
 volumes:
   - ./config/komodo.cli.toml:/config/komodo.cli.toml
 ```
 
-#### Server-Konfiguration
+#### Server Configuration
 
-Erstellen Sie eine `periphery.config.toml` Datei und mounten Sie sie:
+Create a `periphery.config.toml` file and mount it:
 
 ```yaml
 volumes:
   - ./config/periphery.config.toml:/config/periphery.config.toml
 ```
 
-## 🔐 Authentifizierung
+## 🔐 Authentication
 
 ### Server (Periphery)
 
-Der Server benötigt Schlüssel für die Authentifizierung:
+The server requires keys for authentication:
 
-1. **Private Key**: Wird automatisch generiert, wenn nicht vorhanden
-   - Standardpfad: `/config/keys/periphery.key`
+1. **Private Key**: Automatically generated if not present
+   - Default path: `/config/keys/periphery.key`
 
-2. **Core Public Key**: Erforderlich für Outbound-Modus
-   - Standardpfad: `/config/keys/core.pub`
-   - Muss von Komodo Core bereitgestellt werden
+2. **Core Public Key**: Required for outbound mode
+   - Default path: `/config/keys/core.pub`
+   - Must be provided by Komodo Core
 
 ### Client (Agent)
 
-Der Client benötigt API-Credentials von Komodo Core:
+The client requires API credentials from Komodo Core:
 
-1. Erstellen Sie einen API-Schlüssel in der Komodo Core UI
-2. Setzen Sie die Umgebungsvariablen:
+1. Create an API key in the Komodo Core UI
+2. Set the environment variables:
    ```bash
    KOMODO_CLI_KEY=K-...
    KOMODO_CLI_SECRET=S-...
    ```
 
-## 🌐 Netzwerk-Konfiguration
+## 🌐 Network Configuration
 
-### Server-Port
+### Server Port
 
-Der Server lauscht standardmäßig auf Port `8120`. Sie können den Host-Port über die Umgebungsvariable ändern:
+The server listens on port `8120` by default. You can change the host port via environment variable:
 
 ```bash
 PERIPHERY_HOST_PORT=8120
 ```
 
-### Netzwerk-Modi
+### Network Modes
 
-#### Outbound-Modus (Server verbindet sich mit Core)
+#### Outbound Mode (Server connects to Core)
 
 ```bash
 PERIPHERY_CORE_ADDRESS=ws://komodo-core:9120
@@ -131,7 +131,7 @@ PERIPHERY_CONNECT_AS=server-name
 PERIPHERY_CORE_PUBLIC_KEYS=file:/config/keys/core.pub
 ```
 
-#### Inbound-Modus (Core verbindet sich mit Server)
+#### Inbound Mode (Core connects to Server)
 
 ```bash
 PERIPHERY_SERVER_ENABLED=true
@@ -141,118 +141,117 @@ PERIPHERY_BIND_IP=[::]
 
 ## 📦 Volumes
 
-### Client-Volumes
+### Client Volumes
 
-- `client-config` - Konfigurationsdateien
-- `client-backups` - Datenbank-Backups
+- `client-config` - Configuration files
+- `client-backups` - Database backups
 
-### Server-Volumes
+### Server Volumes
 
-- `server-config` - Konfigurationsdateien
-- `server-keys` - Private/Public Keys
-- `server-ssl` - SSL-Zertifikate
-- `/var/run/docker.sock` - Docker Socket (für Container-Management)
-- `/proc` - System-Informationen
-- `PERIPHERY_ROOT_DIRECTORY` - Root-Verzeichnis für Stacks/Repos
+- `server-config` - Configuration files
+- `server-keys` - Private/Public keys
+- `server-ssl` - SSL certificates
+- `/var/run/docker.sock` - Docker socket (for container management)
+- `/proc` - System information
+- `PERIPHERY_ROOT_DIRECTORY` - Root directory for stacks/repos
 
-## 🔧 Erweiterte Nutzung
+## 🔧 Advanced Usage
 
-### Client-Befehle ausführen
+### Execute Client Commands
 
 ```bash
-# Backup erstellen
+# Create backup
 docker-compose exec komodo-client km backup database
 
-# Restore durchführen
+# Perform restore
 docker-compose exec komodo-client km restore database
 
-# Andere Befehle
+# Other commands
 docker-compose exec komodo-client km <command>
 ```
 
-### Server-Konfiguration aktualisieren
+### Update Server Configuration
 
 ```bash
-# Konfigurationsdatei bearbeiten
+# Edit configuration file
 docker-compose exec komodo-server vi /config/periphery.config.toml
 
-# Server neu starten
+# Restart server
 docker-compose restart komodo-server
 ```
 
 ### Health Checks
 
-Beide Services haben Health Checks konfiguriert:
+Both services have health checks configured:
 
 ```bash
-# Status prüfen
+# Check status
 docker-compose ps
 
-# Health Check Details
+# Health check details
 docker inspect komodo-server | jq '.[0].State.Health'
 ```
 
 ## 🐛 Troubleshooting
 
-### Server startet nicht
+### Server won't start
 
-1. Prüfen Sie die Logs:
+1. Check the logs:
    ```bash
    docker-compose logs komodo-server
    ```
 
-2. Stellen Sie sicher, dass der Docker Socket gemountet ist:
+2. Ensure Docker socket is mounted:
    ```yaml
    volumes:
      - /var/run/docker.sock:/var/run/docker.sock:ro
    ```
 
-3. Prüfen Sie die Berechtigungen für `/proc`:
+3. Check permissions for `/proc`:
    ```yaml
    volumes:
      - /proc:/proc:ro
    ```
 
-### Client kann sich nicht verbinden
+### Client cannot connect
 
-1. Prüfen Sie die Core-Adresse:
+1. Check the Core address:
    ```bash
    echo $KOMODO_CLI_HOST
    ```
 
-2. Stellen Sie sicher, dass die API-Credentials gesetzt sind:
+2. Ensure API credentials are set:
    ```bash
    echo $KOMODO_CLI_KEY
    echo $KOMODO_CLI_SECRET
    ```
 
-3. Testen Sie die Verbindung:
+3. Test the connection:
    ```bash
    docker-compose exec komodo-client km --version
    ```
 
-### Schlüssel-Probleme
+### Key Issues
 
-Wenn der Server sich nicht authentifizieren kann:
+If the server cannot authenticate:
 
-1. Prüfen Sie, ob die Schlüssel existieren:
+1. Check if keys exist:
    ```bash
    docker-compose exec komodo-server ls -la /config/keys/
    ```
 
-2. Stellen Sie sicher, dass die Core Public Key korrekt ist:
+2. Ensure the Core public key is correct:
    ```bash
    docker-compose exec komodo-server cat /config/keys/core.pub
    ```
 
-## 📚 Weitere Informationen
+## 📚 Additional Information
 
-- [Komodo Dokumentation](https://komo.do/docs)
-- [Client Konfiguration](../config/komodo.cli.toml)
-- [Server Konfiguration](../config/periphery.config.toml)
+- [Komodo Documentation](https://komo.do/docs)
+- [Client Configuration](../config/komodo.cli.toml)
+- [Server Configuration](../config/periphery.config.toml)
 - [GitHub Repository](https://github.com/moghtech/komodo)
 
-## 📝 Lizenz
+## 📝 License
 
 GPL-3.0
-
