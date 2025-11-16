@@ -1,0 +1,40 @@
+####################################
+# 🦎 KOMODO CLIENT (AGENT) DOCKERFILE 🦎 #
+####################################
+
+## Multi-stage build for Komodo CLI (Client/Agent)
+## This builds the Komodo CLI tool that can be used as an agent
+
+FROM rust:1.90.0-bullseye AS builder
+RUN cargo install cargo-strip
+
+WORKDIR /builder
+COPY Cargo.toml Cargo.lock ./
+COPY ./lib ./lib
+COPY ./client/core/rs ./client/core/rs
+COPY ./client/periphery ./client/periphery
+COPY ./bin/cli ./bin/cli
+
+# Compile bin
+RUN cargo build -p komodo_cli --release && cargo strip
+
+# Copy binaries to distroless base
+FROM gcr.io/distroless/cc
+
+COPY --from=builder /builder/target/release/km /usr/local/bin/km
+
+# Configuration paths - can be overridden via environment variables
+ENV KOMODO_CLI_CONFIG_PATHS="/config"
+
+# Default working directory
+WORKDIR /workspace
+
+# Entrypoint
+ENTRYPOINT ["/usr/local/bin/km"]
+
+# Labels
+LABEL org.opencontainers.image.source="https://github.com/moghtech/komodo"
+LABEL org.opencontainers.image.description="Komodo CLI (Client/Agent)"
+LABEL org.opencontainers.image.licenses="GPL-3.0"
+LABEL komodo.component="client"
+

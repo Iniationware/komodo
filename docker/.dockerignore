@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+docker/
+*.dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+target/
+node_modules/
+dist/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Test files
+test/
+tests/
+*.test.rs
+*.spec.ts
+
+# Screenshots
+screenshots/
+
+# Analysis reports
+*.md
+!README.md
+ANALYSE_BERICHT.md
+RACE_CONDITION_ANALYSE.md
+SECURITY_IMPROVEMENTS.md
+

@@ -1,0 +1,54 @@
+####################################
+# 🦎 KOMODO SERVER (PERIPHERY) DOCKERFILE 🦎 #
+####################################
+
+## Multi-stage build for Komodo Periphery Server
+## This builds the Komodo Periphery server that acts as an agent server
+
+FROM rust:1.90.0-trixie AS builder
+RUN cargo install cargo-strip
+
+WORKDIR /builder
+COPY Cargo.toml Cargo.lock ./
+COPY ./lib ./lib
+COPY ./client/core/rs ./client/core/rs
+COPY ./client/periphery ./client/periphery
+COPY ./bin/periphery ./bin/periphery
+
+# Compile app
+RUN cargo build -p komodo_periphery --release && cargo strip
+
+# Final Image
+FROM debian:trixie-slim
+
+COPY ./bin/periphery/starship.toml /starship.toml
+COPY ./bin/periphery/debian-deps.sh .
+RUN sh ./debian-deps.sh && rm ./debian-deps.sh
+
+COPY --from=builder /builder/target/release/periphery /usr/local/bin/periphery
+
+COPY ./bin/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Expose default port
+EXPOSE 8120
+
+# Configuration paths - can be overridden via environment variables
+ENV PERIPHERY_CONFIG_PATHS="/config"
+# Change the default in container to /config/keys to match Core
+ENV PERIPHERY_PRIVATE_KEY="file:/config/keys/periphery.key"
+
+# Default root directory
+ENV PERIPHERY_ROOT_DIRECTORY="/etc/komodo"
+
+# Entrypoint script handles certificate updates
+ENTRYPOINT [ "entrypoint.sh" ]
+CMD [ "periphery" ]
+
+# Labels
+LABEL komodo.skip="true"
+LABEL org.opencontainers.image.source="https://github.com/moghtech/komodo"
+LABEL org.opencontainers.image.description="Komodo Periphery Server"
+LABEL org.opencontainers.image.licenses="GPL-3.0"
+LABEL komodo.component="server"
+

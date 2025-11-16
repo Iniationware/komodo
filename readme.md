@@ -16,6 +16,22 @@ The Komodo dragon is the largest living member of the [*Monitor* family of lizar
 
 There is no limit to the number of servers you can connect, and there will never be. There is no limit to what API you can use for automation, and there never will be. No "business edition" here.
 
+## Security
+
+Komodo includes comprehensive security features:
+
+- 🔒 **Configurable CORS** - Restrict allowed origins for production
+- 🛡️ **Security Headers** - Protection against XSS, clickjacking, and more
+- 🚦 **Rate Limiting** - Brute-force protection for authentication endpoints
+- ✅ **Input Validation** - Comprehensive validation for all user inputs
+- 📝 **Security Logging** - Audit trail for security events
+- 🔐 **Session Management** - Robust JWT token handling with clock skew tolerance
+
+For detailed security documentation, see:
+- [Security Improvements](SECURITY_IMPROVEMENTS.md)
+- [Developer Guide](docs/DEVELOPER_GUIDE.md)
+- [API Security](docs/API_SECURITY.md)
+
 ## Disclaimer
 
 Warning. This is open source software (GPL-V3), and while we make a best effort to ensure releases are stable and bug-free,
@@ -25,6 +41,8 @@ there are no warranties. Use at your own risk.
 
 - [periphery setup](https://github.com/moghtech/komodo/blob/main/scripts/readme.md)
 - [roadmap](https://github.com/moghtech/komodo/blob/main/roadmap.md)
+- [Security Documentation](SECURITY_IMPROVEMENTS.md)
+- [Developer Guide](docs/DEVELOPER_GUIDE.md)
 
 ## Screenshots
 
